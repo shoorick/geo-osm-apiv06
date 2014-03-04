@@ -65,6 +65,7 @@ sub transliterate {
             s/Е[ий]/Ieï/g;
             s/Э[ий]/Eï/g;
             s/О[ий]/Oï/g;
+            s/([АЕЁИОУЫЭЮЯ])я/$1ïa/g;
             s/Е/Ie/g;
             s/Ё/Io/g;
             s/Ж/J/g;
@@ -80,9 +81,11 @@ sub transliterate {
             s/е[ий]/ieï/g;
             s/э[ий]/eï/g;
             s/о[ий]/oï/g;
+            s/([аеёиоуыэюя])я/$1ïa/g;
             s/е/ie/g;
             s/ё/io/g;
             s/ж/j/g;
+            s/ский/ski/;
             s/у/ou/g;
             s/х/kh/g;
             s/ц/ts/g;
@@ -108,7 +111,7 @@ sub transliterate {
 
 
 my $structure = XMLin(
-    'node-adzhatar.osm',
+    $ARGV[0],
     'KeyAttr'    => { 'tag' => 'k' },
     'ForceArray' => 1,
     'KeepRoot'   => 1,
