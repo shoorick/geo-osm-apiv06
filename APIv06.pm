@@ -58,7 +58,7 @@ Return XML response or die.
 
 =cut
 
-sub get_object {
+sub get_object($$) {
     my ( $self, $type, $id ) = @_;
     my $ua = $self->{'ua'};
     my $response = $ua->get($self->{'url'} . "/$type/$id");
@@ -71,6 +71,26 @@ sub get_object {
         die $response->status_line;
 }
 
+=head2 close_changeset($id)
+
+Close changeset
+
+=cut
+
+
+sub close_changeset($) {
+    my ( $self, $type, $id ) = @_;
+    my $ua = $self->{'ua'};
+    my $response = $ua->put($self->{'url'} . "/changeset/$id/close");
+    # TODO Check args
+
+    if ($response->is_success) {
+        return $response->decoded_content;
+    }
+    # else
+        die $response->status_line;
+        # TODO not die
+}
 
 
 1;
