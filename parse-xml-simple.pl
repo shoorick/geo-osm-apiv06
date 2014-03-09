@@ -60,15 +60,19 @@ sub transliterate {
             return $_;
         },
         'fr' => sub {
+            # https://fr.wikipedia.org/wiki/Transcription_du_russe_en_fran%C3%A7ais
             local $_ = shift;
             s/А[ий]/Aï/g;
             s/Е[ий]/Ieï/g;
+            s/Г([еёиюя])/Gu$1/g;
             s/Э[ий]/Eï/g;
             s/О[ий]/Oï/g;
             s/([АЕЁИОУЫЭЮЯ])я/$1ïa/g;
-            s/Е/Ie/g;
+            s/\bЕ/Ie/g;
             s/Ё/Io/g;
+            s/([иы])н$/$1ne/g;
             s/Ж/J/g;
+            s/([АЕЁИОУЫЭЮЯ])с([аеёиоуыэюя])/$1ss$2/g;
             s/У/Ou/g;
             s/Х/Kh/g;
             s/Ц/Ts/g;
@@ -85,18 +89,20 @@ sub transliterate {
             s/е/ie/g;
             s/ё/io/g;
             s/ж/j/g;
-            s/ский/ski/;
+            s/ий\b/i/g;
+            s/([аеёиоуыэюя])с([аеёиоуыэюя])/$1ss$2/g;
             s/у/ou/g;
             s/х/kh/g;
             s/ц/ts/g;
             s/ч/tch/g;
             s/ш/ch/g;
             s/щ/chtch/g;
+            s/ый\b/y/g;
             s/ю/iu/g;
             s/я/ia/g;
             s/[ъь]//g;
-            y[АБВГДЗИЙКЛМНОПРСТФЫЭабвгдзийклмнопрстфыэ]
-             [ABVGDZIYKLMNOPRSTFYEabvgdziyklmnoprstfye];
+            y[АБВГДЕЗИЙКЛМНОПРСТФЫЭабвгдезийклмнопрстфыэ]
+             [ABVGDEZIIKLMNOPRSTFYEabvgdeziiklmnoprstfye];
             return $_;
         },
         'ru' => sub {
