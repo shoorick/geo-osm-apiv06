@@ -2,7 +2,8 @@ package APIv06;
 
 use strict;
 use utf8;
-use LWP::UserAgent;
+use LWP::UserAgent 6.04;
+use XML::Simple qw(:strict);
 
 our $VERSION = 0.01;
 
@@ -70,6 +71,53 @@ sub get_object($$) {
     # else
         die $response->status_line;
 }
+
+
+=head2 create_changeset(tag => 'value', [tag => 'value'])
+
+Create changeset with specified tag
+
+=cut
+
+sub create_changeset {
+    my $self  = shift;
+    
+    my %tags
+        = ref $_[0] eq 'HASH'
+        ? %{ shift() } : @_;
+    
+    $tags{'created_by'} //= $self->{'agent'};
+    
+    # Convert
+    # key => value
+    # into
+    # key => { v => value }
+    foreach my $key ( keys %tags ) {
+        $tags{$key} = { 'v' => $tags{$key} };
+    }
+
+    my $changeset_xml = XMLout(
+        { 'osm' => { 'changeset' => \%tags } },
+        'KeyAttr'    => { 'tag' => 'k' },
+        'KeepRoot'   => 1,
+    );
+
+    my $ua = $self->{'ua'};
+    my $response = $ua->put(
+        $self->{'url'} . '/changeset/create',
+        'Content' => $changeset_xml,
+    );
+    # TODO Check args
+
+    if ($response->is_success) {
+        return $response->decoded_content;
+    }
+    # else
+        die $response->status_line;
+        # TODO not die
+}
+
+
 
 =head2 close_changeset($id)
 
