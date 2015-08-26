@@ -85,6 +85,40 @@ sub get_object($$) {
 }
 
 
+=head2 get_map(@bbox)
+
+Get map area of given bounds.
+Return XML response or die.
+
+=cut
+
+sub get_map {
+    my $self   = shift;
+    my @bounds = split q{,}, join q{,}, @_;
+    # left,bottom,right,top
+    # swap bounds if necessary
+    @bounds[0, 2] = @bounds[2, 0] if $bounds[0] > $bounds[2];
+    @bounds[1, 3] = @bounds[3, 1] if $bounds[1] > $bounds[3];
+
+    my $ua = $self->{'ua'};
+    my $response = $ua->get($self->{'url'} . '/map?bbox=' . join q{,}, @bounds);
+    # TODO Check args
+
+    if ($response->is_success) {
+        return $response->decoded_content;
+    }
+    else {
+        die "Huge area requested. Try to decrease its size.\n" . $response->status_line
+            if $response->code == 400; # HTTP Bad request
+        
+        die "Many data requested. Try to repeat later.\n" . $response->status_line
+            if $response->code == 509; # HTTP Bad request
+    
+        # else
+            die $response->status_line;
+    }    
+}
+
 =head2 create_changeset(tag => 'value', [tag => 'value'])
 
 Create changeset with specified tag
