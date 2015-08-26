@@ -250,7 +250,18 @@ sub end_event {
         }
         
         # Store changes
-        print "$name: ", join(' / ', %$object), "\n- ", join(' / ', %$tags), "\n\n";
+        my $names = {};
+        foreach my $tag ( grep { /name/ } keys %$tags ) {
+            $names->{ $tag } = $tags->{ $tag };
+        }
+        if ( scalar %$names ) {
+            print "\n$name: ", join(' / ', %$object), "\n";
+            while ( my ($k, $v) = each %$names ) {
+                print "\t$k = $v\n";
+            };
+        }
+        
+        
 
         # Return to initial state
         $state--;
