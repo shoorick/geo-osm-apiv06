@@ -1,8 +1,107 @@
 #!/usr/bin/perl -w
 use strict;
 use utf8;
-use XML::Simple qw(:strict);
+
+my $VERSION = 0.01;
+
+=head1 NAME
+
+transliterate.pl - Transliterate names in OpenStreetMap data
+
+=head1 DESCRIPTION
+
+Read Russian names from C<name> and C<name:ru> tags and then store them to C<name:en> and C<int_name>.
+
+=head1 SYNOPSIS
+
+  ./transliterate.pl [options]
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-a>, B<--api> url
+
+Override API URL. Default value is http://api.openstreetmap.org/api/0.6
+
+=item B<-t>, B<--test>
+
+Use test API URL http://api06.dev.openstreetmap.org/api/0.6
+
+=item B<-b>, B<--bbox>, B<--bounds> coordinates
+
+Set bounds to C<coordinates> left,bottom,right,top. Values can be separated by comma or space.
+
+=item B<-u>, B<--username> username
+
+Username for OpenStreetMap.
+
+=item B<-p>, B<--password> [password]
+
+Password for OpenStreetMap. Password will be asked when not specified.
+
+=item B<-?>, B<-h>, B<--help>,
+
+Print a brief help message and exit.
+
+=item B<-m>, B<--man>, B<--manual>
+
+Prints the manual page and exit.
+
+=item B<-v>, B<--verbose>
+
+Be verbose.
+
+=back
+
+=head1 SEE ALSO
+
+L<http://wiki.openstreetmap.org/wiki/API_v0.6>
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright 2015 Alexander Sapozhnikov
+E<lt>shoorick@cpan.orgE<gt> L<http://shoorick.ru>
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl programming language system itself.
+
+See L<http://dev.perl.org/licenses/> for more information.
+
+=cut
+
 use Data::Dumper;
+use Getopt::Long;
+use LWP::UserAgent;
+use XML::Parser;
+
+use FindBin;
+use lib $FindBin::Bin;
+
+use APIv06;
+
+my (@bounds, $need_help, $need_manual, $verbose);
+
+my      $api_url = 'http://api.openstreetmap.org/api/0.6';
+my $test_api_url = 'http://api06.dev.openstreetmap.org/api/0.6';
+
+GetOptions(
+	'bbox|bounds=s{1,4}' => \@bounds,
+
+    'api'       => \$api_url,
+    'test'      => sub { $api_url = $test_api_url },
+	  
+    'help|?'    => \$need_help,
+    'manual'    => \$need_manual,
+    'verbose'   => \$verbose,
+    'quiet'     => sub { $verbose = 0 },
+);
+
+use Pod::Usage qw( pod2usage );
+pod2usage(1)
+    if $need_help;
+pod2usage('verbose' => 2)
+    if $need_manual;
 
 
 sub transliterate {
@@ -113,42 +212,69 @@ sub transliterate {
     my ( $what, $how ) = @_;
     return $subs{$how}($what);
     
-}
+} # sub transliterate
 
 
-my $structure = XMLin(
-    $ARGV[0],
-    'KeyAttr'    => { 'tag' => 'k' },
-    'ForceArray' => 1,
-    'KeepRoot'   => 1,
-);
+our $state  = 0; # initial
+our $tags   = {};
+our $object = {};
 
-#print Dumper($structure);
+# Function is called whenever an XML tag is started
+sub start_event {
+    my ($expat, $name, %attr) = @_;
+    
+    if ( $name =~ /^node|way|relation$/ ) {
+        $state++;
+        $object = {%attr};
+        return;
+    }
+    # else
+    $tags->{ $attr{'k'} } = $attr{'v'}
+        if $state && $name eq 'tag';
 
-foreach my $osm ( @{ $structure->{'osm'} } ) {
-    foreach my $node ( @{ $osm->{'node'} } ) {
-        my $tags = $node->{'tag'};
-        
+} # sub start_event
+
+# Function is called whenever an XML tag is ended
+sub end_event {
+    my ($expat, $name) = @_;
+
+    if ( $name =~ /^node|way|relation$/ ) {
+
         # Check existence and copy if possible
         if ( $tags->{'name'} ) {
                 #if $tags->{'name'}->{'v'} =~ /[\x400-\x4FF]/; # name contains cyrillic
             foreach my $language ( qw( de en fr ru ) ) {
-                $tags->{"name:$language"}->{'v'} //= transliterate($tags->{'name'}->{'v'}, $language);
+                $tags->{"name:$language"} //= transliterate($tags->{'name'}, $language);
             }
-            $tags->{"int_name"}->{'v'} //= $tags->{'name:en'}->{'v'};
+            $tags->{'int_name'} //= $tags->{'name:en'};
         }
         
+        # Store changes
+        print "$name: ", join(' / ', %$object), "\n- ", join(' / ', %$tags), "\n\n";
+
+        # Return to initial state
+        $state--;
+        $object = {};
+        $tags   = {};
     }
+    
 }
 
-# my %tags = $structure->{osm}->[0]->{node}->[0]->{tag};
-#p join ' ', keys %tags
-#p join ' ', keys $structure->{'osm'}->[0]->{'node'}->[0]->{'tag'}
 
 
-my $xml = XMLout(
-    $structure,
-    'KeyAttr'    => { 'tag' => 'k' },
-    'KeepRoot'   => 1,
+###################
+#
+# Workflow
+
+my $api = APIv06->new($api_url);
+my $map = $api->get_map(@bounds);
+
+my $parser = XML::Parser->new(
+    'Handlers' => {
+        'Start' => \&start_event,
+        'End'   =>   \&end_event,
+    }
 );
-print $xml;
+my $result = $parser->parse($map);
+
+
