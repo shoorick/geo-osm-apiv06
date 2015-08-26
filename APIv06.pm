@@ -3,6 +3,7 @@ package APIv06;
 use strict;
 use utf8;
 use LWP::UserAgent 6.04;
+use URI;
 use XML::Simple qw(:strict);
 
 our $VERSION = 0.01;
@@ -29,21 +30,32 @@ The following methods construct new C<APIv06> objects:
 
 =item $uri = APIv06->new( $api_url, $user_agent, $your_email )
 
-Constructs a new APIv06 object. Arguments may be omitted, default values are L<http://api06.dev.openstreetmap.org/api/0.6> (test URL) as API URL and package name joined with version number as User-Agent.
+Constructs a new APIv06 object.
+Arguments may be omitted, default values are
+L<http://api06.dev.openstreetmap.org/api/0.6> (test URL) as API URL
+and package name joined with version number as User-Agent.
 
 =back
 
 =cut
 
 sub new {
-    my ( $class, $url, $agent, $from ) = @_;
+    my ( $class, $url, $agent, $from, $username, $password ) = @_;
     my $self  = {};
-    $self->{'url'}   = $url   || 'http://api06.dev.openstreetmap.org/api/0.6'; # test
+    $self->{'url'}
+        = URI->new(
+            $url
+            || 'http://api06.dev.openstreetmap.org/api/0.6' # devel URL when not specified
+        );
     $self->{'agent'} = $agent || 'perl-' . __PACKAGE__ . '/' . $VERSION;
     $self->{'from'}  = $from  || $ENV{'USER'} . '@example.com';
     $self->{'ua'}    = LWP::UserAgent->new(
         'agent' => $self->{'agent'},
         'from'  => $self->{'from'},
+    );
+    $self->{'ua'}->credentials(
+        $self->{'url'}->host_port, 'Web Password',
+        $username, $password
     );
 
     bless  $self, $class;
@@ -127,7 +139,7 @@ Close changeset
 
 
 sub close_changeset($) {
-    my ( $self, $type, $id ) = @_;
+    my ( $self, $id ) = @_;
     my $ua = $self->{'ua'};
     my $response = $ua->put($self->{'url'} . "/changeset/$id/close");
     # TODO Check args
