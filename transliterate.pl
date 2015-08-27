@@ -32,6 +32,10 @@ Use test API URL http://api06.dev.openstreetmap.org/api/0.6
 
 Set bounds to C<coordinates> left,bottom,right,top. Values can be separated by comma or space.
 
+=item B<-f>, B<--filter> key[=value], B<--filter> value
+
+Process subset instead of full dataset.
+
 =item B<-u>, B<--username> username
 
 Username for OpenStreetMap.
@@ -74,6 +78,7 @@ use Data::Dumper;
 use Getopt::Long;
 use LWP::UserAgent;
 use XML::Parser;
+use open qw( :std :utf8 );
 
 use FindBin;
 use lib $FindBin::Bin;
@@ -81,16 +86,18 @@ use lib $FindBin::Bin;
 use APIv06;
 
 my (@bounds, $need_help, $need_manual, $verbose);
+our $filter;
 
 my      $api_url = 'http://api.openstreetmap.org/api/0.6';
 my $test_api_url = 'http://api06.dev.openstreetmap.org/api/0.6';
 
 GetOptions(
 	'bbox|bounds=s{1,4}' => \@bounds,
+    'filter=s'  => \$filter,
 
-    'api'       => \$api_url,
+    'api=s'     => \$api_url,
     'test'      => sub { $api_url = $test_api_url },
-	  
+
     'help|?'    => \$need_help,
     'manual'    => \$need_manual,
     'verbose'   => \$verbose,
@@ -208,10 +215,10 @@ sub transliterate {
             return shift; # do nothing
         },
     );
-    
+
     my ( $what, $how ) = @_;
     return $subs{$how}($what);
-    
+
 } # sub transliterate
 
 
@@ -222,7 +229,7 @@ our $object = {};
 # Function is called whenever an XML tag is started
 sub start_event {
     my ($expat, $name, %attr) = @_;
-    
+
     if ( $name =~ /^node|way|relation$/ ) {
         $state++;
         $object = {%attr};
@@ -237,8 +244,22 @@ sub start_event {
 # Function is called whenever an XML tag is ended
 sub end_event {
     my ($expat, $name) = @_;
+    my $found = 1;
 
     if ( $name =~ /^node|way|relation$/ ) {
+
+       FILTER:
+        if ( $filter ) {
+            $found = 0;
+            while ( my ($k, $v) = each %$object ) {
+                if ( "$k=$v" =~ /$filter/ ) {
+                    $found = 1;
+                    #last FILTER;
+                    # Exiting subroutine via last at ./transliterate.pl line 257.
+                    # Label not found for "last FILTER" at ./transliterate.pl line 257.
+                }
+            }
+        }
 
         # Check existence and copy if possible
         if ( $tags->{'name'} ) {
@@ -248,28 +269,30 @@ sub end_event {
             }
             $tags->{'int_name'} //= $tags->{'name:en'};
         }
-        
+
         # Store changes
         my $names = {};
-        foreach my $tag ( grep { /name/ } keys %$tags ) {
-            $names->{ $tag } = $tags->{ $tag };
-        }
-        if ( scalar %$names ) {
+        while ( my ($k, $v) = each %$tags ) {
+            $names->{ $k } = $v if $k =~ /name/;
+            
+            if ( !$found && "$k=$v" =~ /$filter/ ) {
+                $found = 1;
+            }
+        } # while
+        
+        if ( $found && scalar %$names ) {
             print "\n$name: ", join(' / ', %$object), "\n";
             while ( my ($k, $v) = each %$names ) {
                 print "\t$k = $v\n";
             };
         }
-        
-        
 
         # Return to initial state
         $state--;
         $object = {};
         $tags   = {};
     }
-    
-}
+} # sub end_event
 
 
 
